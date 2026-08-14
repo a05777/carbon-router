@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "web-ai-clipboard-bridge"
+version = "0.3.0"
+description = "A manual clipboard bridge exposing web AI chats as an OpenAI-compatible API"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "fastapi>=0.115.0,<1.0.0",
+  "uvicorn[standard]>=0.30.0,<1.0.0",
+  "python-dotenv>=1.0.1,<2.0.0",
+  "pydantic>=2.7.0,<3.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "httpx>=0.27.0,<1.0.0",
+  "pytest>=7.2.0,<9.0.0",
+  "pytest-asyncio>=0.21.0,<1.0.0",
+]
+
+[project.scripts]
+clipboard-bridge = "web_ai_clipboard_bridge.__main__:main"
+
+[tool.setuptools.package-data]
+web_ai_clipboard_bridge = ["static/*.html"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+pythonpath = ["."]
+testpaths = ["tests"]

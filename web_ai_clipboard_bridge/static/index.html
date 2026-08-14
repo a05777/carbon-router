@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Web AI Clipboard Bridge</title>
+  <style>
+    :root {
+      --ink: #17202a;
+      --muted: #637080;
+      --line: #d9e0e8;
+      --paper: #fbfcfe;
+      --panel: #ffffff;
+      --blue: #1769e0;
+      --blue-dark: #0d4fb1;
+      --green: #13795b;
+      --amber: #9a5b00;
+      --red: #bb2d3b;
+      --shadow: 0 12px 30px rgba(23, 32, 42, .08);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--paper);
+      font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    button, textarea { font: inherit; }
+    .topbar {
+      background: #17202a;
+      color: #f7f9fb;
+      border-bottom: 4px solid #3a82f7;
+    }
+    .topbar-inner, main { width: min(1180px, calc(100% - 36px)); margin: 0 auto; }
+    .topbar-inner { min-height: 76px; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+    .brand { display: flex; align-items: center; gap: 13px; }
+    .brand-mark { width: 37px; height: 37px; border: 2px solid #80b3ff; display: grid; place-items: center; border-radius: 8px; color: #cfe2ff; font-size: 19px; }
+    .brand h1 { margin: 0; font-size: 19px; letter-spacing: 0; }
+    .brand p { margin: 2px 0 0; color: #b4c0cf; font-size: 12px; }
+    .status { display: inline-flex; align-items: center; gap: 8px; min-height: 32px; padding: 5px 11px; border: 1px solid #526071; border-radius: 999px; font-size: 12px; font-weight: 700; letter-spacing: .04em; }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #b4c0cf; }
+    .status.ready { color: #a8efd5; border-color: #267b63; }
+    .status.ready .status-dot { background: #40d2a4; }
+    .status.waiting { color: #ffd58b; border-color: #9a6a28; }
+    .status.waiting .status-dot { background: #f0a530; }
+    .status.processing { color: #b9d7ff; border-color: #366ea8; }
+    .status.processing .status-dot { background: #5b9df5; }
+    main { padding: 32px 0 56px; }
+    .intro { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 22px; }
+    .intro h2 { margin: 0; font-size: 27px; letter-spacing: 0; line-height: 1.2; }
+    .intro p { margin: 7px 0 0; color: var(--muted); }
+    .request-meta { color: var(--muted); font-size: 13px; text-align: right; min-height: 21px; }
+    .workspace { display: grid; grid-template-columns: minmax(0, 1.12fr) minmax(0, .88fr); gap: 20px; align-items: start; }
+    .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; }
+    .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 17px 19px; border-bottom: 1px solid var(--line); }
+    .panel-head h3 { margin: 0; font-size: 15px; }
+    .panel-head span { color: var(--muted); font-size: 12px; }
+    .panel-body { padding: 19px; }
+    #prompt { width: 100%; min-height: 440px; margin: 0; padding: 16px; background: #f3f6fa; border: 1px solid #e0e7ef; border-radius: 6px; color: #263341; font: 13px/1.65 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; overflow: auto; }
+    textarea { width: 100%; min-height: 440px; resize: vertical; padding: 15px; color: var(--ink); background: #fff; border: 1px solid #bfcbd8; border-radius: 6px; outline: none; }
+    textarea:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(23, 105, 224, .12); }
+    textarea:disabled { background: #f3f6fa; cursor: not-allowed; }
+    .panel-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; }
+    .hint { color: var(--muted); font-size: 12px; }
+    button { min-height: 40px; padding: 8px 15px; border-radius: 6px; border: 1px solid transparent; font-weight: 700; cursor: pointer; transition: background .15s, border-color .15s, transform .15s; }
+    button:active { transform: translateY(1px); }
+    button:disabled { opacity: .48; cursor: not-allowed; transform: none; }
+    .secondary { color: #23415f; background: #eef4fb; border-color: #cad9eb; }
+    .secondary:hover:not(:disabled) { background: #e2edf9; border-color: #a9c3e1; }
+    .primary { color: #fff; background: var(--blue); }
+    .primary:hover:not(:disabled) { background: var(--blue-dark); }
+    .empty { min-height: 440px; display: grid; place-items: center; padding: 30px; text-align: center; color: var(--muted); }
+    .empty strong { display: block; color: var(--ink); margin-bottom: 5px; }
+    .history { margin-top: 20px; }
+    .history-list { margin: 0; padding: 0; list-style: none; }
+    .history-item { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 14px; align-items: center; padding: 13px 19px; border-bottom: 1px solid var(--line); font-size: 13px; }
+    .history-item:last-child { border-bottom: 0; }
+    .history-id { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: ui-monospace, monospace; }
+    .history-status { font-weight: 700; font-size: 11px; color: var(--green); }
+    .history-status.timed_out { color: var(--amber); }
+    .history-status.cancelled { color: var(--red); }
+    .notice { min-height: 21px; margin-top: 13px; color: var(--muted); font-size: 13px; }
+    .notice.error { color: var(--red); }
+    @media (max-width: 820px) {
+      .topbar-inner, main { width: min(100% - 24px, 680px); }
+      .topbar-inner { min-height: 68px; }
+      .intro { display: block; }
+      .request-meta { text-align: left; margin-top: 10px; }
+      .workspace { grid-template-columns: 1fr; }
+      #prompt, textarea, .empty { min-height: 320px; }
+      .history-item { grid-template-columns: minmax(0, 1fr) auto; }
+      .history-item time { grid-column: 1 / -1; grid-row: 2; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">↔</div>
+        <div>
+          <h1>Web AI Clipboard Bridge</h1>
+          <p>Local manual gateway for web-based AI</p>
+        </div>
+      </div>
+      <div id="status" class="status ready"><span class="status-dot"></span><span>READY</span></div>
+    </div>
+  </header>
+  <main>
+    <section class="intro">
+      <div>
+        <h2>Clipboard workspace</h2>
+        <p>等待 Coding Agent 请求，然后在网页 AI 中完成一次手工往返。</p>
+      </div>
+      <div id="request-meta" class="request-meta"></div>
+    </section>
+    <section class="workspace">
+      <article class="panel">
+        <div class="panel-head">
+          <h3>Prompt</h3>
+          <button id="copy" class="secondary" type="button" disabled>📋 复制 Prompt</button>
+        </div>
+        <div id="prompt-wrap" class="panel-body">
+          <pre id="prompt" hidden></pre>
+          <div id="prompt-empty" class="empty"><div><strong>当前没有待处理请求</strong>当 API 请求抵达后，Prompt 会显示在这里。</div></div>
+        </div>
+      </article>
+      <article class="panel">
+        <div class="panel-head">
+          <h3>AI Answer</h3>
+          <span>Ctrl + Enter 提交</span>
+        </div>
+        <div class="panel-body">
+          <textarea id="answer" placeholder="将 Gemini、ChatGPT 或 Claude 的回答粘贴到这里…" disabled></textarea>
+          <div class="panel-actions">
+            <span id="notice" class="hint">没有需要提交的回答。</span>
+            <button id="submit" class="primary" type="button" disabled>提交回答</button>
+          </div>
+        </div>
+      </article>
+    </section>
+    <section class="panel history">
+      <div class="panel-head"><h3>Request history</h3><span>最近 10 次</span></div>
+      <ul id="history" class="history-list"><li class="history-item"><span class="hint">暂无历史记录</span></li></ul>
+    </section>
+  </main>
+  <script>
+    const state = { requestId: null, copiedFor: null, lastStatus: null };
+    const els = {
+      status: document.querySelector('#status'),
+      requestMeta: document.querySelector('#request-meta'),
+      prompt: document.querySelector('#prompt'),
+      promptEmpty: document.querySelector('#prompt-empty'),
+      copy: document.querySelector('#copy'),
+      answer: document.querySelector('#answer'),
+      submit: document.querySelector('#submit'),
+      notice: document.querySelector('#notice'),
+      history: document.querySelector('#history')
+    };
+
+    function setNotice(message, error = false) {
+      els.notice.textContent = message;
+      els.notice.classList.toggle('error', error);
+    }
+
+    function setStatus(uiStatus) {
+      const status = uiStatus || 'READY';
+      els.status.className = `status ${status === 'READY' ? 'ready' : status === 'WAITING_FOR_USER' ? 'waiting' : 'processing'}`;
+      els.status.lastElementChild.textContent = status;
+    }
+
+    function renderHistory(items) {
+      if (!items || !items.length) {
+        els.history.innerHTML = '<li class="history-item"><span class="hint">暂无历史记录</span></li>';
+        return;
+      }
+      els.history.innerHTML = items.map(item => {
+        const status = String(item.status || '').replaceAll('_', ' ');
+        const duration = item.duration_seconds == null ? '—' : `${item.duration_seconds}s`;
+        return `<li class="history-item"><span class="history-id" title="${item.request_id}">${item.request_id}</span><span class="history-status ${item.status}">${status}</span><time class="hint">${duration}</time></li>`;
+      }).join('');
+    }
+
+    async function copyPrompt(auto = false) {
+      if (!state.requestId || !els.prompt.textContent) return false;
+      try {
+        await navigator.clipboard.writeText(els.prompt.textContent);
+        state.copiedFor = state.requestId;
+        setNotice(auto ? 'Prompt 已尝试写入剪贴板。' : 'Prompt 已复制。');
+        return true;
+      } catch (error) {
+        setNotice('浏览器未授予剪贴板权限，请手动选中并复制。', true);
+        return false;
+      }
+    }
+
+    function render(data) {
+      setStatus(data.ui_status);
+      renderHistory(data.history);
+      const current = data.current;
+      if (!current) {
+        state.requestId = null;
+        els.prompt.hidden = true;
+        els.promptEmpty.hidden = false;
+        els.copy.disabled = true;
+        els.answer.disabled = true;
+        els.submit.disabled = true;
+        els.requestMeta.textContent = '';
+        if (data.ui_status === 'READY') setNotice('没有需要提交的回答。');
+        return;
+      }
+      const changed = state.requestId !== current.request_id;
+      state.requestId = current.request_id;
+      els.prompt.textContent = current.prompt;
+      els.prompt.hidden = false;
+      els.promptEmpty.hidden = true;
+      els.copy.disabled = data.ui_status !== 'WAITING_FOR_USER';
+      els.answer.disabled = data.ui_status !== 'WAITING_FOR_USER';
+      els.submit.disabled = data.ui_status !== 'WAITING_FOR_USER';
+      els.requestMeta.textContent = `${current.model} · ${current.request_id}`;
+      if (data.ui_status === 'WAITING_FOR_USER') {
+        setNotice('将 Prompt 发给网页 AI，再把完整回答粘贴回来。');
+        if (changed) {
+          els.answer.value = '';
+          state.copiedFor = null;
+          // Clipboard writes without a user gesture may be rejected; the button remains available.
+          copyPrompt(true);
+        }
+      } else {
+        setNotice('回答已提交，正在返回给调用方…');
+      }
+    }
+
+    async function refresh() {
+      try {
+        const response = await fetch('/api/status', { cache: 'no-store' });
+        if (!response.ok) throw new Error(`status ${response.status}`);
+        render(await response.json());
+      } catch (error) {
+        setStatus('PROCESSING');
+        setNotice('无法连接本地 Bridge 服务。', true);
+      }
+    }
+
+    async function submitAnswer() {
+      const answer = els.answer.value;
+      if (!state.requestId || !answer.trim()) {
+        setNotice('请先粘贴网页 AI 的回答。', true);
+        return;
+      }
+      els.submit.disabled = true;
+      try {
+        const response = await fetch('/api/submit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Bridge-UI': 'clipboard-bridge' },
+          body: JSON.stringify({ request_id: state.requestId, answer })
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error?.message || '提交失败');
+        setNotice('已提交。');
+        await refresh();
+      } catch (error) {
+        setNotice(error.message, true);
+        els.submit.disabled = false;
+      }
+    }
+
+    els.copy.addEventListener('click', () => copyPrompt(false));
+    els.submit.addEventListener('click', submitAnswer);
+    els.answer.addEventListener('keydown', event => {
+      if (event.ctrlKey && event.key === 'Enter') submitAnswer();
+    });
+    refresh();
+    window.setInterval(refresh, 1000);
+  </script>
+</body>
+</html>
+
